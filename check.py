@@ -1,9 +1,8 @@
 import cv2
 import mediapipe as mp
 import numpy as np
-from tkinter import Tk, filedialog
-import matplotlib.pyplot as plt
-import time  # Added for timeout mechanism
+from tkinter import Tk, filedialog, messagebox
+import time
 
 def select_background():
     Tk().withdraw()  # Hide the root window
@@ -20,32 +19,71 @@ def main():
     if not cap.isOpened():
         print("Error: Unable to access the webcam.")
         return
-    
-    bg_image = select_background()
-    if bg_image is None:
-        print("No background image selected. Exiting...")
+
+    # Hardcoded the paths for up to 9 background images here
+    background_paths = [
+    r"C:\Users\HP\Desktop\Others\Phantom-Weave-\Backgrounds\1_library.jpg",  
+    r"C:\Users\HP\Desktop\Others\Phantom-Weave-\Backgrounds\2_sunset.jpg", 
+    r"C:\Users\HP\Desktop\Others\Phantom-Weave-\Backgrounds\3_nightcity.webp", 
+    r"C:\Users\HP\Desktop\Others\Phantom-Weave-\Backgrounds\4_space.jpeg", 
+    r"C:\Users\HP\Desktop\Others\Phantom-Weave-\Backgrounds\5_colors.jpg", 
+    r"C:\Users\HP\Desktop\Others\Phantom-Weave-\Backgrounds\6_rainywindow.jpg", 
+    r"C:\Users\HP\Desktop\Others\Phantom-Weave-\Backgrounds\7_garden.jpg",  
+    r"C:\Users\HP\Desktop\Others\Phantom-Weave-\Backgrounds\8_mountains.jpg",  
+    r"C:\Users\HP\Desktop\Others\Phantom-Weave-\Backgrounds\9_street.jpg",
+]
+
+    # Preload and resize backgrounds
+    backgrounds = []
+    for i, path in enumerate(background_paths):
+        if path:
+            bg = cv2.imread(path)
+            if bg is None:
+                print(f"Warning: Background {i + 1} ({path}) is invalid or missing. Skipping.")
+                backgrounds.append(None)
+            else:
+                backgrounds.append(bg)
+        else:
+            print(f"Background {i + 1} skipped.")
+            backgrounds.append(None)
+
+    blur_mode = True  # Start with blur mode enabled
+    current_bg_index = 0  # 0 for blur, 1-10 for backgrounds
+    timeout = 300
+    start_time = time.time()
+
+    # Resize backgrounds to match webcam frame size
+    ret, frame = cap.read()
+    if not ret:
+        print("Error: Unable to read from the webcam.")
         cap.release()
         return
-    
-    plt.ion()  # Enable interactive mode for matplotlib
-    fig, ax = plt.subplots()
-    img_display = ax.imshow(np.zeros((480, 640, 3), dtype=np.uint8))  # Placeholder image
-    plt.axis('off')
+    h, w, _ = frame.shape
+    for i in range(len(backgrounds)):
+        if backgrounds[i] is not None:
+            backgrounds[i] = cv2.resize(backgrounds[i], (w, h))
 
-    start_time = time.time()  # Start timer for timeout
-    timeout = 300  # Timeout in seconds (e.g., 5 minutes)
-    blur_mode = False  # Flag to toggle between replacement and blur modes
+    # Initialize video writer but defer saving decision
+    out = None
+    video_frames = []
 
-    def on_key(event):
-        nonlocal blur_mode
-        if event.key == '1':  # Toggle blur mode on pressing '1'
-            blur_mode = not blur_mode
-            print(f"Blur mode {'enabled' if blur_mode else 'disabled'}")
-        elif event.key == 'q' or event.key == 'escape':  # Exit on pressing 'q' or 'Esc'
+    def on_key(key):
+        nonlocal blur_mode, current_bg_index
+        if key == ord('0'):  # Blur mode
+            blur_mode = True
+            current_bg_index = 0
+            print("Blur mode enabled")
+        elif ord('1') <= key <= ord('9'):  # Backgrounds 1-9
+            blur_mode = False
+            current_bg_index = key - ord('0')
+            if backgrounds[current_bg_index - 1] is None:
+                print(f"Background {current_bg_index} is missing. Skipping.")
+                return
+            print(f"Background {current_bg_index} selected")
+        elif key == ord('q') or key == 27:  # Exit
             print("Exiting...")
-            plt.close()  # Close the plot window to exit the loop
-
-    fig.canvas.mpl_connect('key_press_event', on_key)  # Bind key press event
+            return False
+        return True
 
     try:
         while cap.isOpened():
@@ -60,48 +98,68 @@ def main():
                 break
             
             frame = cv2.flip(frame, 1)
-            h, w, _ = frame.shape
-            bg_resized = cv2.resize(bg_image, (w, h))
-            
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             result = segment.process(rgb_frame)
             
             mask = result.segmentation_mask
             mask = np.clip(mask, 0, 1)  # Ensure mask values are between 0 and 1
             
-            # Apply advanced edge detection to refine the mask
-            mask = cv2.bilateralFilter(mask, 9, 75, 75)  # Smooth the mask while preserving edges
-            edges = cv2.Canny((mask * 255).astype(np.uint8), 50, 150)  # Detect edges
-            edges = cv2.dilate(edges, None, iterations=2)  # Dilate edges for better blending
-            edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))  # Close gaps in edges
-            
-            # Convert edges to uint8 and invert for masking
-            edges_mask = (edges == 0).astype(np.uint8) * 255
-            refined_mask = cv2.bitwise_and((mask * 255).astype(np.uint8), (mask * 255).astype(np.uint8), mask=edges_mask)
-            refined_mask = refined_mask / 255.0  # Normalize back to [0, 1]
-            
-            refined_mask = np.expand_dims(refined_mask, axis=-1)
-            refined_mask = np.repeat(refined_mask, 3, axis=-1)
-            
-            # Apply Gaussian blur to smooth the mask for better blending
-            refined_mask_blurred = cv2.GaussianBlur(refined_mask, (15, 15), 0)
+            # Refine the mask with Gaussian blur
+            refined_mask = cv2.GaussianBlur(mask, (15, 15), 0)
             
             if blur_mode:
                 # Blur the original background
                 blurred_bg = cv2.GaussianBlur(frame, (51, 51), 0)
-                output = (frame * refined_mask_blurred + blurred_bg * (1 - refined_mask_blurred)).astype(np.uint8)
+                output = (frame * refined_mask[..., None] + blurred_bg * (1 - refined_mask[..., None])).astype(np.uint8)
             else:
-                # Replace the background with the selected image
-                output = (frame * refined_mask_blurred + bg_resized * (1 - refined_mask_blurred)).astype(np.uint8)
-            
-            # Convert BGR to RGB for matplotlib
-            output_rgb = cv2.cvtColor(output, cv2.COLOR_BGR2RGB)
-            
-            img_display.set_data(output_rgb)
-            plt.pause(0.01)  # Pause to update the frame
+                # Use the selected background
+                selected_bg = backgrounds[current_bg_index - 1]
+                if selected_bg is not None:
+                    output = (frame * refined_mask[..., None] + selected_bg * (1 - refined_mask[..., None])).astype(np.uint8)
+                else:
+                    print(f"Background {current_bg_index} is missing. Defaulting to blur mode.")
+                    blurred_bg = cv2.GaussianBlur(frame, (51, 51), 0)
+                    output = (frame * refined_mask[..., None] + blurred_bg * (1 - refined_mask[..., None])).astype(np.uint8)
+
+            # Store frames in memory for saving later
+            video_frames.append(output)
+
+            try:
+                # Display the output using OpenCV
+                cv2.imshow("Virtual Background", output)
+            except cv2.error:
+                print("GUI functions are not supported.")
+
+            # Handle key events
+            key = cv2.waitKey(1) & 0xFF
+            if not on_key(key):
+                break
+
+            # Ensure the OpenCV window remains responsive
+            if cv2.getWindowProperty("Virtual Background", cv2.WND_PROP_VISIBLE) < 1:
+                print("Window closed by user. Exiting...")
+                break
     finally:
         cap.release()
-        plt.close()
+        try:
+            cv2.destroyAllWindows()
+        except cv2.error:
+            print("Error: Unable to destroy OpenCV windows. Skipping cleanup.")
+
+        # Ask the user if they want to save the video using a GUI prompt
+        Tk().withdraw()  # Hide the root window
+        save_video = messagebox.askyesno("Save Video", "Do you want to save the video output?")
+
+        if save_video:
+            print("Saving video...")
+            fourcc = cv2.VideoWriter_fourcc(*'XVID')
+            out = cv2.VideoWriter('output.avi', fourcc, 20.0, (w, h))
+            for frame in video_frames:
+                out.write(frame)
+            out.release()
+            print("Video saved as 'output.avi'.")
+        else:
+            print("Video not saved.")
 
 if __name__ == "__main__":
     main()
