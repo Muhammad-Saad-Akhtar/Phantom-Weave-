@@ -47,8 +47,8 @@ This project leverages cutting-edge technologies like OpenCV, MediaPipe, and PyQ
 
 ### Clone the Repository
 ```bash
-git clone https://github.com/your-repo/phantom-weave.git
-cd phantom-weave
+git clone https://github.com/Muhammad-Saad-Akhtar/Phantom-Weave-
+cd phantom-weave-
 ```
 
 ---
@@ -121,13 +121,6 @@ Phantom-Weave-
 - **Performance**: Real-time processing may lag on low-end systems.
 - **Icon Compatibility**: Ensure the icon file is in `.webp` format or convert it to `.png` for compatibility.
 
----
-
-## License
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
----
-
 ## Acknowledgments
 - [OpenCV](https://opencv.org/)
 - [MediaPipe](https://mediapipe.dev/)
@@ -138,6 +131,6 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## Contact
 For questions or feedback, please contact:
-- **Name**: Your Name
-- **Email**: your.email@example.com
-- **GitHub**: [Your GitHub Profile](https://github.com/your-profile) -->
+- **Name**: Muhammad Saad
+- **Email**: msaadawan8@gmail.com
+- **GitHub**: [Muhammad-Saad-Akhtar](https://github.com/Muhammad-Saad-Akhtar) -->
