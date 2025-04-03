@@ -1,8 +1,16 @@
 import cv2
 import mediapipe as mp
 import numpy as np
-from tkinter import Tk, filedialog, messagebox
+from tkinter import Tk, filedialog, messagebox, Toplevel, Label, Button
+from PIL import Image, ImageTk  # Use Pillow for handling .webp files
 import time
+
+ICON_PATH = "C:\\Users\\HP\\Desktop\\Others\\Phantom-Weave-\\Icon1.webp"
+
+def load_icon_for_tkinter(icon_path):
+    """Convert .webp icon to a format compatible with Tkinter."""
+    image = Image.open(icon_path)
+    return ImageTk.PhotoImage(image)
 
 def select_background():
     Tk().withdraw()  # Hide the root window
@@ -10,6 +18,50 @@ def select_background():
     if file_path:
         return cv2.imread(file_path)
     return None
+
+def custom_askyesno(title, message, icon_path):
+    """Custom dialog box with a custom icon."""
+    dialog = Toplevel()
+    dialog.title(title)
+    dialog.geometry("400x200")
+    dialog.resizable(False, False)
+    dialog.configure(bg="black")
+    dialog.iconphoto(False, ImageTk.PhotoImage(Image.open(icon_path)))
+
+    # Add icon
+    icon_label = Label(dialog, image=ImageTk.PhotoImage(Image.open(icon_path)), bg="black")
+    icon_label.image = ImageTk.PhotoImage(Image.open(icon_path))  # Keep a reference to avoid garbage collection
+    icon_label.pack(side="left", padx=20, pady=20)
+
+    # Add message
+    message_label = Label(dialog, text=message, font=("Arial", 12), fg="white", bg="black")
+    message_label.pack(side="top", padx=10, pady=10)
+
+    # Add Yes and No buttons
+    response = {"value": None}
+
+    def on_yes():
+        response["value"] = True
+        dialog.destroy()
+
+    def on_no():
+        response["value"] = False
+        dialog.destroy()
+
+    button_frame = Label(dialog, bg="black")
+    button_frame.pack(side="bottom", pady=10)
+
+    yes_button = Button(button_frame, text="Yes", font=("Arial", 10), bg="green", fg="white", command=on_yes)
+    yes_button.pack(side="left", padx=10)
+
+    no_button = Button(button_frame, text="No", font=("Arial", 10), bg="red", fg="white", command=on_no)
+    no_button.pack(side="right", padx=10)
+
+    dialog.transient()  # Make the dialog modal
+    dialog.grab_set()
+    dialog.wait_window()
+
+    return response["value"]
 
 def main():
     mp_selfie_segmentation = mp.solutions.selfie_segmentation
@@ -146,9 +198,11 @@ def main():
         except cv2.error:
             print("Error: Unable to destroy OpenCV windows. Skipping cleanup.")
 
-        # Ask the user if they want to save the video using a GUI prompt
+        # Load the icon for Tkinter
         Tk().withdraw()  # Hide the root window
-        save_video = messagebox.askyesno("Save Video", "Do you want to save the video output?")
+
+        # Ask the user if they want to save the video using the custom dialog
+        save_video = custom_askyesno("Save Video", "Do you want to save the video output?", ICON_PATH)
 
         if save_video:
             print("Saving video...")
